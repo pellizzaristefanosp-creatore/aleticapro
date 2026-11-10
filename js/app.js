@@ -5,6 +5,7 @@ import { drawSkeleton, drawSagittal, drawFrontal, legsToShow, bodyBox } from './
 import * as T from './tools.js';
 import { C, CONF_COLOR, fmt, text as drawText, Labels } from './draw.js';
 import { exportPNG, exportCSV, exportJSON, exportMarkdown, exportVideo, renderFrameTo } from './export.js';
+import { recordReel, previewAt } from './reel.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -104,8 +105,9 @@ photo.addEventListener('load', async () => {
   S.loaded = true;
   fit();
   S.follow = true; $('#btnFollow').classList.add('on');
-  $('#btnAnalyze').disabled = true;
+  $('#btnAnalyze').disabled = true; $('#btnReelTop').disabled = false;
   S.frame = 0;
+  restoreProject();
   await detectSingle(0, ++seekToken);
   hint(`Foto ${S.W}×${S.H}: angoli automatici sul fermo immagine. Disegna con gli strumenti sotto.`);
   refreshAll();
@@ -123,8 +125,9 @@ video.addEventListener('loadedmetadata', async () => {
   S.loaded = true;
   fit();
   S.follow = true; $('#btnFollow').classList.add('on');
+  restoreProject();
   await gotoFrame(0);
-  $('#btnAnalyze').disabled = false;
+  $('#btnAnalyze').disabled = false; $('#btnReelTop').disabled = false;
   hint(`Video ${S.W}×${S.H} · ${S.fps} fps${S.fpsAuto ? ' (stimati)' : ''} · ${video.duration.toFixed(2)} s`);
   refreshAll();
 });
@@ -303,7 +306,7 @@ export function drawOverlays(c, u, f, opts = {}) {
     const o = { u, groundRad: S.groundRad, legs: S.legs, showLow: S.showLow };
     Labels.begin();
     if (mm.view === 'frontale') drawFrontal(c, P, mm.M, S.show, o); else drawSagittal(c, P, mm.M, S.show, o);
-    Labels.flush(c, u, bodyBox(P), S.W, S.H);
+    Labels.flush(c, u, bodyBox(P), S.W, S.H, opts.bounds);
   }
   const env = { groundRad: S.groundRad, pxPerM: S.pxPerM };
   if (S.groundShape) T.drawShape(c, S.groundShape, S.groundShape.pts, u, env);
@@ -320,7 +323,8 @@ function render() {
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(media(), 0, 0, S.W, S.H);
   const u = 1 / s;
-  drawOverlays(ctx, u, S.frame);
+  const rr = stage.getBoundingClientRect();
+  drawOverlays(ctx, u, S.frame, { bounds: { x0: -ox / s, x1: (rr.width - ox) / s, y0: -oy / s, y1: (rr.height - oy) / s } });
   if (S.draft) {
     const P = poseAt(S.frame);
     T.drawShape(ctx, S.draft.shape, T.resolve(S.draft.shape, P), u, { groundRad: S.groundRad, pxPerM: S.pxPerM }, true, S.draft.cursor);
@@ -892,6 +896,68 @@ $('#btnVideo').onclick = async () => {
   gotoFrame(S.frame, false);
 };
 
+// ---------------- reel animato ----------------
+async function makeReel() {
+  if (S.busy || !S.loaded) return;
+  if (!poseAt(S.frame)) { hint('Nessun atleta rilevato nel fotogramma corrente: scegli un altro fotogramma.'); return; }
+  S.busy = true; S.cancel = false; pause();
+  $('#progress').hidden = false;
+  $$('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === 'export'));
+  $$('.tab').forEach((p) => p.classList.toggle('on', p.dataset.tab === 'export'));
+  try {
+    const { blob, ext, duration } = await recordReel({
+      title: $('#reelTitle').value, preroll: $('#reelPre').value === '1',
+      seek: seekFrame, cancelled: () => S.cancel,
+      onProgress: (p, msg) => { $('#progressBar').style.width = `${p * 100}%`; $('#progressText').textContent = msg; },
+    });
+    if (S.cancel) { hint('Reel annullato.'); return; }
+    const name = `GASA_${S.name}_reel.${ext}`;
+    const url = URL.createObjectURL(blob);
+    const out = $('#reelOut');
+    const file = new File([blob], name, { type: blob.type });
+    const canShare = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+    out.innerHTML = `<video src="${url}" controls playsinline></video><div class="row"><a class="btn primary" href="${url}" download="${name}">Scarica ${ext.toUpperCase()}</a>${canShare ? '<button class="btn" id="btnShareReel">Condividi / Salva in Foto</button>' : ''}</div><p class="fine">${duration.toFixed(1)} s · 1080×1920${ext === 'webm' ? ' · WebM: per Instagram converti in MP4' : ' · MP4 H.264'}</p>`;
+    if (canShare) $('#btnShareReel').onclick = () => navigator.share({ files: [file], title: 'GASA Biomechanics' }).catch(() => {});
+    hint('Reel pronto: guardalo nel pannello Export.');
+  } catch (e) { console.error(e); hint('Reel non riuscito: ' + e.message); }
+  finally {
+    $('#progress').hidden = true; S.busy = false;
+    gotoFrame(S.frame, false);
+  }
+}
+$('#btnReel').onclick = makeReel;
+$('#btnReelTop').onclick = makeReel;
+
+// ---------------- salvataggio automatico ----------------
+const projKey = () => `gasa:${S.name}:${S.W}x${S.H}`;
+function autosave() {
+  if (!S.loaded) return;
+  try {
+    localStorage.setItem(projKey(), JSON.stringify({
+      v: 1, shapes: S.shapes, events: S.events, groundRad: S.groundRad, groundShape: S.groundShape, pxPerM: S.pxPerM,
+      rangeIn: S.rangeIn, rangeOut: S.rangeOut, show: S.show, legs: S.legs, view: S.view, A: S.A, B: S.B,
+    }));
+  } catch (e) { /* storage non disponibile */ }
+}
+function restoreProject() {
+  try {
+    const d = JSON.parse(localStorage.getItem(projKey()) || 'null');
+    if (!d) return false;
+    Object.assign(S, { shapes: d.shapes || [], events: d.events || [], groundRad: d.groundRad || 0, groundShape: d.groundShape || null,
+      pxPerM: d.pxPerM || null, A: d.A ?? null, B: d.B ?? null, legs: d.legs || S.legs, view: d.view || S.view });
+    if (d.show) Object.assign(S.show, d.show);
+    if (!S.isImage && d.rangeOut != null && d.rangeOut < S.nFrames) { S.rangeIn = d.rangeIn; S.rangeOut = d.rangeOut; }
+    T.bumpIds(S.shapes);
+    buildChips();
+    $$('#viewSeg button').forEach((b) => b.classList.toggle('on', b.dataset.v === S.view));
+    $$('#legSeg button').forEach((b) => b.classList.toggle('on', b.dataset.l === S.legs));
+    hint('Ripreso il lavoro salvato su questo file (angoli, eventi, calibrazioni).');
+    return true;
+  } catch (e) { return false; }
+}
+setInterval(() => { if (S.loaded && !S.busy) autosave(); }, 3000);
+window.addEventListener('pagehide', autosave);
+
 // ---------------- generale ----------------
 export function hint(msg) { $('#hudHint').textContent = msg; }
 function refreshAll() {
@@ -921,4 +987,7 @@ buildChips();
 refreshAll();
 // pre-carica il modello in background
 getLandmarker('IMAGE', S.model).catch(() => {});
-window.GASA = { S, gotoFrame, metricsAt }; // per debug/test
+window.GASA = { S, gotoFrame, metricsAt, previewAt }; // per debug/test
+
+// app installabile e utilizzabile offline
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});

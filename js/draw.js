@@ -119,7 +119,10 @@ export const Labels = {
   list: null,
   begin() { this.list = []; },
   add(anchor, text, color, sub) { if (this.list) this.list.push({ anchor, text, sub, color }); },
-  flush(ctx, u, box, W, H) {
+  flush(ctx, u, box, W, H, bounds = null) {
+    // area visibile (schermo zoomato) ∩ immagine: le etichette restano sempre leggibili
+    const X0 = Math.max(0, bounds?.x0 ?? 0), X1 = Math.min(W, bounds?.x1 ?? W);
+    const Y0 = Math.max(0, bounds?.y0 ?? 0), Y1 = Math.min(H, bounds?.y1 ?? H);
     const L = this.list || [];
     this.list = null;
     if (!L.length) return;
@@ -137,13 +140,13 @@ export const Labels = {
       if (!items.length) continue;
       const pw = Math.max(...items.map(widthOf));
       let x = side < 0 ? box.minX - 34 * u - pw / 2 : box.maxX + 34 * u + pw / 2;
-      x = Math.max(pw / 2 + 4 * u, Math.min(W - pw / 2 - 4 * u, x));
+      x = Math.max(X0 + pw / 2 + 4 * u, Math.min(X1 - pw / 2 - 4 * u, x));
       // centra il blocco sull'altezza media delle ancore, poi risolve le sovrapposizioni
       let ys = items.map((l) => l.anchor.y);
       for (let i = 1; i < ys.length; i++) ys[i] = Math.max(ys[i], ys[i - 1] + ph + gap);
-      const over = ys[ys.length - 1] + ph / 2 - (H - 4 * u);
+      const over = ys[ys.length - 1] + ph / 2 - (Y1 - 4 * u);
       if (over > 0) ys = ys.map((y) => y - over);
-      for (let i = 0; i < ys.length; i++) ys[i] = Math.max(ys[i], ph / 2 + 4 * u + i * (ph + gap));
+      for (let i = 0; i < ys.length; i++) ys[i] = Math.max(ys[i], Y0 + ph / 2 + 4 * u + i * (ph + gap));
       items.forEach((l, i) => {
         const p = { x, y: ys[i] };
         const edge = { x: x - side * pw / 2, y: p.y };

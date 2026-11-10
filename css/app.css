@@ -149,3 +149,8 @@ dialog li { margin-bottom: 6px; }
   .time { display: none; }
   .markers { margin-left: 136px; margin-right: 58px; }
 }
+
+.btn.reel { border-color: var(--blue); color: var(--blue); }
+.reel-out { margin-top: 10px; }
+.reel-out video { width: 100%; max-height: 60vh; border-radius: 10px; border: 1px solid var(--line); background: #000; }
+.reel-out .row { margin-top: 8px; }

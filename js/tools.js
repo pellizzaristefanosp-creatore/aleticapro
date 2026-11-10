@@ -24,6 +24,7 @@ const AUTO_TRIPLETS = {
 };
 
 let uid = 1;
+export function bumpIds(shapes) { for (const s of shapes) uid = Math.max(uid, (s.id || 0) + 1); }
 export function newShape(type, pts, frameIdx) {
   const allSnapped = pts.every((p) => p.lm != null);
   return { id: uid++, type, pts, frame: frameIdx, scope: allSnapped ? 'all' : 'frame', color: C.yellow };

@@ -44,6 +44,24 @@ aggiungerla alla schermata Home: si apre a schermo intero.
 - Il **magnete** aggancia il punto all'articolazione più vicina: il disegno resta valido in tutti i fotogrammi.
 - Pinch o rotella per lo zoom. Tasti: ←/→ fotogramma (Shift = 10), spazio play, Canc elimina, Ctrl+Z annulla.
 
+### Reel animato (dal telefono)
+
+Il pulsante **Reel** in alto crea un video 9:16 (1080×1920) del fotogramma corrente, che può essere una **foto** o un **video in pausa**. Il video contiene:
+- titolo d'apertura;
+- rallenty facoltativo fino al fermo immagine, se il video è stato analizzato;
+- angoli che hai disegnato;
+- tracking delle articolazioni;
+- uno zoom con arco animato per ogni angolo attivo misurabile, con sottotitoli;
+- una scheda di sintesi che elenca anche cosa non è misurabile;
+- la chiusura GASA.
+
+Su iPhone il pulsante "Condividi / Salva in Foto" apre il menu di condivisione. Safari e Chrome registrano in MP4 H.264.
+
+### Offline e salvataggio
+
+- Dopo la prima apertura l'app funziona **anche senza rete**: modello e WebAssembly restano in cache tramite service worker. Si può aggiungere alla schermata Home di iPhone.
+- Angoli disegnati, eventi, calibrazioni e intervallo vengono **salvati automaticamente** per ogni file e ripresi quando lo riapri.
+
 ### Export
 
 PNG annotato, CSV con un valore per fotogramma, report JSON e Markdown, **video annotato** (Reel 1080×1920, 720×1280 o formato originale) con rallenty e fermo immagine sugli eventi. Safari e Chrome producono MP4 H.264. Un eventuale WebM si converte con `python/tools/to_instagram.sh`.
