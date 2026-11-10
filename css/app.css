@@ -102,7 +102,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .conf.bassa { background: rgba(138,151,168,.15); color: var(--grey); }
 .check { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #C9D2DD; }
 .check input { accent-color: var(--blue); }
-h4 { margin: 16px 0 8px; font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--grey); }
+h2.sec { margin: 16px 0 8px; font-weight: 700; font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--grey); }
 .shapes, .events { list-style: none; padding: 0; margin: 0; }
 .shapes li, .events li { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 .shapes li.sel { color: var(--blue); }
@@ -117,7 +117,8 @@ h4 { margin: 16px 0 8px; font-size: 11.5px; letter-spacing: .12em; text-transfor
 .inout { display: flex; gap: 4px; }
 .evbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
 .evbtns [data-ev="START"], .evbtns #btnAutoEvents { grid-column: span 2; }
-.evbtns [data-foot="L"] { border-left: 3px solid var(--blue); } .evbtns [data-foot="R"] { border-left: 3px solid var(--yellow); }
+.evbtns [data-foot]::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--blue); }
+.evbtns [data-foot="R"]::before { background: var(--yellow); }
 #chart { width: 100%; background: var(--bg2); border-radius: var(--r); border: 1px solid var(--line); touch-action: none; }
 .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .compare figure { margin: 0; }

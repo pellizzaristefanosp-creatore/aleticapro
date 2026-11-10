@@ -107,7 +107,7 @@
           <label class="check"><input type="checkbox" id="optLive" checked> Rilevamento automatico</label>
           <label class="check"><input type="checkbox" id="optLow"> Valori a bassa confidenza</label>
         </div>
-        <h4>Angoli disegnati</h4>
+        <h2 class="sec">Angoli disegnati</h2>
         <ul class="shapes" id="shapes"><li class="muted">Nessuno: scegli uno strumento sotto al video.</li></ul>
         <details class="settings">
           <summary>Impostazioni analisi</summary>
@@ -134,9 +134,9 @@
           <button class="btn primary" id="btnAutoEvents">Rileva automaticamente</button>
         </div>
         <ul class="events" id="events"></ul>
-        <h4>Tempi</h4>
+        <h2 class="sec">Tempi</h2>
         <div id="times" class="fine">—</div>
-        <h4>Negative step</h4>
+        <h2 class="sec">Negative step</h2>
         <div class="row"><select id="nsFoot"><option value="L">Piede SX</option><option value="R">Piede DX</option></select><button class="btn small" id="btnNS">Valuta dall'evento “Inizio”</button></div>
         <div id="nsOut" class="fine"></div>
       </div>
@@ -160,7 +160,7 @@
           <button class="btn" id="btnJson">Report JSON</button>
           <button class="btn" id="btnMd">Report testo</button>
         </div>
-        <h4>Video analizzato</h4>
+        <h2 class="sec">Video analizzato</h2>
         <div class="grid2">
           <label>Formato<select id="expFormat"><option value="reel">Reel 9:16 (1080×1920)</option><option value="reel720">Reel leggero (720×1280)</option><option value="orig">Originale</option></select></label>
           <label>Rallenty<select id="expSlow"><option value="1">1×</option><option value="2">2×</option><option value="4" selected>4×</option><option value="8">8×</option></select></label>
