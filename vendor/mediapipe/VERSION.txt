@@ -1,0 +1,1 @@
+@mediapipe/tasks-vision 1.2.2 — Apache-2.0 — https://github.com/google-ai-edge/mediapipe

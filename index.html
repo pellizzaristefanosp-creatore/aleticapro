@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#080D14">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>GASA Biomechanics — Sprint Lab</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <img src="assets/icon.svg" alt="" width="28" height="28">
+      <div><b>GASA</b> BIOMECHANICS<small>SPRINT LAB · VIDEOANALISI 2D</small></div>
+    </div>
+    <div class="top-actions">
+      <label class="btn primary" for="file">
+        <svg viewBox="0 0 24 24"><path d="M4 16v4h16v-4M12 3v13M7 8l5-5 5 5"/></svg>
+        <span>Video</span>
+      </label>
+      <input id="file" type="file" accept="video/*" hidden>
+      <button class="btn" id="btnAnalyze" disabled>
+        <svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span>Analizza</span>
+      </button>
+      <button class="btn ghost" id="btnHelp" title="Guida">?</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="stage-wrap">
+      <div class="stage" id="stage">
+        <canvas id="canvas"></canvas>
+        <video id="video" playsinline muted preload="auto"></video>
+        <div class="empty" id="empty">
+          <div class="empty-card">
+            <h1>Analisi biomeccanica dello sprint</h1>
+            <p>Carica un video (laterale o frontale). L'app rileva da sola le articolazioni e misura gli angoli. Tu puoi disegnarne altri con un tocco.</p>
+            <label class="btn primary big" for="file">Carica video</label>
+            <p class="fine">Il video resta sul tuo dispositivo: l'analisi avviene nel browser.</p>
+          </div>
+        </div>
+        <div class="hud" id="hud">
+          <span id="hudView" class="tag">—</span>
+          <span id="hudFrame" class="tag mono">F 0</span>
+          <span id="hudHint" class="hint"></span>
+        </div>
+        <div class="progress" id="progress" hidden>
+          <div class="bar"><i id="progressBar"></i></div>
+          <span id="progressText">Analisi…</span>
+          <button class="btn small" id="btnCancel">Annulla</button>
+        </div>
+        <div class="zoom-ctl">
+          <button class="icon" id="btnZoomIn" title="Zoom +">+</button>
+          <button class="icon" id="btnZoomOut" title="Zoom −">−</button>
+          <button class="icon" id="btnFit" title="Adatta">⤢</button>
+          <button class="icon" id="btnFollow" title="Segui atleta (zoom automatico)">◎</button>
+        </div>
+      </div>
+
+      <div class="transport">
+        <button class="icon" id="btnPrev" title="Fotogramma precedente (←)"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6M6 6v12"/></svg></button>
+        <button class="icon play" id="btnPlay" title="Play/Pausa (spazio)"><svg viewBox="0 0 24 24" id="playIcon"><path d="M7 5l12 7-12 7z"/></svg></button>
+        <button class="icon" id="btnNext" title="Fotogramma successivo (→)"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6M18 6v12"/></svg></button>
+        <input type="range" id="scrub" min="0" max="0" value="0" step="1">
+        <select id="speed" title="Velocità">
+          <option value="1">1×</option><option value="0.5">½×</option><option value="0.25" selected>¼×</option><option value="0.1">⅒×</option>
+        </select>
+        <span class="time mono" id="time">0.000 s</span>
+      </div>
+      <div class="markers" id="markers"></div>
+
+      <div class="tools" id="tools"></div>
+      <div class="tool-help" id="toolHelp"></div>
+    </section>
+
+    <aside class="panel">
+      <nav class="tabs" id="tabs">
+        <button data-tab="angles" class="on">Angoli</button>
+        <button data-tab="events">Eventi</button>
+        <button data-tab="chart">Grafico</button>
+        <button data-tab="compare">Confronto</button>
+        <button data-tab="export">Export</button>
+      </nav>
+
+      <div class="tab on" data-tab="angles">
+        <div class="row">
+          <div class="seg" id="viewSeg">
+            <button data-v="auto" class="on">Auto</button><button data-v="sagittale">Sagittale</button><button data-v="frontale">Frontale</button>
+          </div>
+        </div>
+        <div class="row" id="legRow">
+          <span class="lbl">Arto</span>
+          <div class="seg small" id="legSeg">
+            <button data-l="near" class="on">Vicino</button><button data-l="both">Entrambi</button><button data-l="L">SX</button><button data-l="R">DX</button>
+          </div>
+        </div>
+        <div class="chips" id="chipsSag"></div>
+        <div class="chips" id="chipsFront" hidden></div>
+        <table class="values" id="values"></table>
+        <div class="row tight">
+          <label class="check"><input type="checkbox" id="optSkeleton" checked> Scheletro</label>
+          <label class="check"><input type="checkbox" id="optLive" checked> Rilevamento automatico</label>
+          <label class="check"><input type="checkbox" id="optLow"> Valori a bassa confidenza</label>
+        </div>
+        <h4>Angoli disegnati</h4>
+        <ul class="shapes" id="shapes"><li class="muted">Nessuno: scegli uno strumento sotto al video.</li></ul>
+        <details class="settings">
+          <summary>Impostazioni analisi</summary>
+          <div class="grid2">
+            <label>Frame rate<select id="fps"><option value="0">auto</option><option>24</option><option>25</option><option>30</option><option>50</option><option>60</option><option>100</option><option>120</option><option>240</option></select></label>
+            <label>Modello<select id="model"><option value="full">Accurato</option><option value="lite">Veloce</option></select></label>
+            <label>Smoothing<select id="smooth"><option value="1">nessuno</option><option value="3">leggero (3)</option><option value="5" selected>medio (5)</option><option value="7">forte (7)</option></select></label>
+            <label>Modello CoM<select id="sex"><option value="M">de Leva maschile</option><option value="F">de Leva femminile</option></select></label>
+            <label>Direzione corsa<select id="dir"><option value="0">auto</option><option value="1">→ destra</option><option value="-1">← sinistra</option></select></label>
+            <label>Intervallo<div class="inout"><button class="btn small" id="btnIn">IN</button><button class="btn small" id="btnOut">OUT</button><button class="btn small ghost" id="btnInOutReset">×</button></div></label>
+          </div>
+          <p class="fine" id="calibInfo">Terreno: orizzontale immagine · Scala: non calibrata</p>
+        </details>
+      </div>
+
+      <div class="tab" data-tab="events">
+        <p class="fine">Segna gli eventi sul fotogramma corrente oppure usa il rilevamento automatico (vista sagittale, camera fissa) e verifica fotogramma per fotogramma.</p>
+        <div class="evbtns">
+          <button class="btn" data-ev="START">Inizio movimento</button>
+          <button class="btn" data-ev="TD" data-foot="L">Touchdown SX</button>
+          <button class="btn" data-ev="TO" data-foot="L">Toe-off SX</button>
+          <button class="btn" data-ev="TD" data-foot="R">Touchdown DX</button>
+          <button class="btn" data-ev="TO" data-foot="R">Toe-off DX</button>
+          <button class="btn primary" id="btnAutoEvents">Rileva automaticamente</button>
+        </div>
+        <ul class="events" id="events"></ul>
+        <h4>Tempi</h4>
+        <div id="times" class="fine">—</div>
+        <h4>Negative step</h4>
+        <div class="row"><select id="nsFoot"><option value="L">Piede SX</option><option value="R">Piede DX</option></select><button class="btn small" id="btnNS">Valuta dall'evento “Inizio”</button></div>
+        <div id="nsOut" class="fine"></div>
+      </div>
+
+      <div class="tab" data-tab="chart">
+        <p class="fine">Evoluzione temporale degli angoli (dopo “Analizza”). Tocca il grafico per spostarti. Punti tenui = confidenza bassa.</p>
+        <div class="chips" id="chartChips"></div>
+        <canvas id="chart" height="240"></canvas>
+      </div>
+
+      <div class="tab" data-tab="compare">
+        <p class="fine">Confronta due fotogrammi sincronizzati sull'evento (es. 1° e 2° touchdown).</p>
+        <div class="row"><button class="btn" id="btnSetA">Imposta A</button><button class="btn" id="btnSetB">Imposta B</button><button class="btn ghost" id="btnAutoAB">A/B da touchdown</button></div>
+        <div class="compare" id="compare"></div>
+      </div>
+
+      <div class="tab" data-tab="export">
+        <div class="exp">
+          <button class="btn" id="btnPng">Fotogramma PNG</button>
+          <button class="btn" id="btnCsv">Angoli CSV</button>
+          <button class="btn" id="btnJson">Report JSON</button>
+          <button class="btn" id="btnMd">Report testo</button>
+        </div>
+        <h4>Video analizzato</h4>
+        <div class="grid2">
+          <label>Formato<select id="expFormat"><option value="reel">Reel 9:16 (1080×1920)</option><option value="reel720">Reel leggero (720×1280)</option><option value="orig">Originale</option></select></label>
+          <label>Rallenty<select id="expSlow"><option value="1">1×</option><option value="2">2×</option><option value="4" selected>4×</option><option value="8">8×</option></select></label>
+          <label>Freeze sugli eventi<select id="expFreeze"><option value="0">no</option><option value="1" selected>1 s</option><option value="2">2 s</option></select></label>
+          <label>Titolo<input id="expTitle" value="SPRINT PERFORMANCE ANALYSIS"></label>
+        </div>
+        <button class="btn primary" id="btnVideo">Esporta video</button>
+        <p class="fine">Esporta l'intervallo IN–OUT con le grafiche attive. Per il Reel completo (zoom, narrazione, sottotitoli) usa la pipeline Python in <code>python/</code>.</p>
+      </div>
+    </aside>
+  </main>
+
+  <dialog id="help">
+    <h2>Come si usa</h2>
+    <ol>
+      <li><b>Carica il video</b>: ripresa laterale (sagittale) o frontale, camera ferma e all'altezza dell'anca se possibile.</li>
+      <li>Metti in pausa: l'app <b>riconosce da sola</b> le articolazioni e mostra gli angoli del profilo. Scegli quali con i chip.</li>
+      <li><b>Analizza</b> elabora tutti i fotogrammi dell'intervallo: tracking più stabile, grafici, eventi automatici.</li>
+      <li><b>Disegna</b>: scegli uno strumento, tocca e trascina. La lente ti aiuta a essere preciso, il magnete aggancia il punto all'articolazione e l'angolo segue l'atleta in tutti i fotogrammi.</li>
+      <li><b>Auto</b>: tocca un'articolazione e ottieni subito l'angolo anatomico.</li>
+      <li><b>Terreno</b>: se la camera è inclinata, traccia il terreno per correggere verticali e orizzontali.</li>
+    </ol>
+    <p class="fine">Colori: <span style="color:#00C8FF">blu = confidenza alta</span>, <span style="color:#FFD447">giallo = media</span>, <span style="color:#8A97A8">grigio = bassa (valore non mostrato)</span>. Le misure sono proiezioni 2D: dipendono dall'allineamento della camera. Tasti: ←/→ fotogramma, spazio play, Canc elimina, Ctrl+Z annulla.</p>
+    <form method="dialog"><button class="btn primary">Ho capito</button></form>
+  </dialog>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

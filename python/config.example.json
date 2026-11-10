@@ -1,0 +1,24 @@
+{
+  "_nota": "Copia e adatta. Gli eventi verificati a mano (frame assoluti del video) hanno priorità sul rilevamento automatico.",
+  "start_s": 9.1,
+  "end_s": 10.1,
+  "fps": null,
+  "model": "full",
+  "smooth": 5,
+  "com_model": "M",
+  "view": "sagittale",
+  "direction": null,
+  "ground_deg": 0.0,
+  "px_per_m": null,
+  "events": [
+    { "frame": 274, "type": "START" },
+    { "frame": 281, "type": "TO", "foot": "R" },
+    { "frame": 286, "type": "TD", "foot": "L" },
+    { "frame": 293, "type": "TO", "foot": "L" },
+    { "frame": 296, "type": "TD", "foot": "R" },
+    { "frame": 302, "type": "TO", "foot": "R" }
+  ],
+  "title": "SPRINT PERFORMANCE ANALYSIS",
+  "hook": "TRIPLA ESTENSIONE: C'È DAVVERO?",
+  "conclusioni": null
+}
