@@ -98,6 +98,8 @@ def glow_line(img, a, b, color, w=4, progress=1.0):
 
 def joint(img, p, color=BLUE, r=7, glow=True, scale=1.0):
     r = r * scale
+    if r < 0.5:
+        return
     if glow:
         R = r * 2.6
         def dr(layer, o):
