@@ -98,7 +98,12 @@ export const confRank = (c) => RANK[c];
 /** converte landmark normalizzati in pixel */
 export function toPx(lms, W, H) {
   // z MediaPipe è normalizzata come x: la riportiamo in pixel (scala W)
-  return lms.map((p) => ({ x: p.x * W, y: p.y * H, z: (p.z ?? 0) * W, v: p.visibility ?? p.v ?? 0 }));
+  return lms.map((p) => {
+    let v = p.visibility ?? p.v ?? 0;
+    // landmark sul bordo o fuori dall'inquadratura (es. testa tagliata): posizione estrapolata → confidenza ridotta
+    if (p.x < 0.015 || p.x > 0.985 || p.y < 0.015 || p.y > 0.985) v = Math.min(v, 0.5);
+    return { x: p.x * W, y: p.y * H, z: (p.z ?? 0) * W, v };
+  });
 }
 
 // ---------- vista e lato ----------
@@ -187,23 +192,29 @@ export function sagittalMetrics(P, opts = {}) {
   const F = frame(opts.groundRad || 0, opts.dir || 1);
   const near = opts.near || nearSide(P);
   const out = {};
-  const shM = mid(P[11], P[12]), hipM = mid(P[23], P[24]);
-  const trunkConf = confFromVis([P[11], P[12], P[23], P[24]]);
+  let shM = mid(P[11], P[12]), hipM = mid(P[23], P[24]);
+  let trunkConf = confFromVis([P[11], P[12], P[23], P[24]]);
+  // se una spalla/anca è poco affidabile (occlusa o fuori inquadratura) si usa il lato vicino alla camera
+  const sn = SIDE[near];
+  const nearConf = confFromVis([P[sn.sh], P[sn.hip]]);
+  if (trunkConf === CONF.LOW && nearConf !== CONF.LOW) { shM = P[sn.sh]; hipM = P[sn.hip]; trunkConf = capConf(nearConf, CONF.MED); }
   const trunk = fromVertical(sub(shM, hipM), F);
   out.trunk = M(trunk, trunkConf, '°', { label: 'Tronco vs verticale' });
   out.trunkH = M(90 - Math.abs(trunk), trunkConf, '°', { label: 'Tronco vs orizzontale' });
 
   const ear = P[SIDE[near].ear];
   const neckV = sub(ear, shM);
-  out.head = M(fromVertical(neckV, F) - trunk, confFromVis([ear, P[11], P[12]]), '°',
+  out.head = M(fromVertical(neckV, F) - trunk, capConf(confFromVis([ear]), trunkConf), '°',
     { label: 'Testa rispetto al tronco', hint: '+ = testa avanti/flessa rispetto al tronco' });
 
   for (const k of ['L', 'R']) {
     const s = SIDE[k];
     const isNear = k === near;
-    const adj = (c) => (isNear ? c : downConf(c));
+    // arto lontano: un livello in meno, salvo che sia chiaramente visibile (visibilità ≥ 0,95)
+    const farClear = Math.min(P[s.hip].v, P[s.kn].v, P[s.an].v) >= 0.95;
+    const adj = (c) => (isNear || farClear ? c : downConf(c));
     const thigh = fromDown(sub(P[s.kn], P[s.hip]), F);
-    out[`hip${k}`] = M(thigh + trunk, adj(confFromVis([P[s.hip], P[s.kn], P[11], P[12]])), '°',
+    out[`hip${k}`] = M(thigh + trunk, adj(capConf(confFromVis([P[s.hip], P[s.kn]]), trunkConf)), '°',
       { label: `Anca ${s.label}`, hint: '+ flessione / − estensione' });
     out[`thigh${k}`] = M(thigh, adj(confFromVis([P[s.hip], P[s.kn]])), '°', { label: `Coscia ${s.label} vs verticale` });
     out[`knee${k}`] = M(180 - angle3(P[s.hip], P[s.kn], P[s.an]), adj(confFromVis([P[s.hip], P[s.kn], P[s.an]])), '°',
@@ -220,6 +231,21 @@ export function sagittalMetrics(P, opts = {}) {
       { label: `Braccio ${s.label} vs tronco`, hint: '+ = avanti' });
   }
 
+  // linea del corpo: punto di contatto del piede → centro spalle, rispetto all'orizzontale del terreno
+  // (diversa dall'inclinazione del tronco: include l'allineamento di arto inferiore e bacino)
+  const fps = { L: footPoint(P, SIDE.L, F), R: footPoint(P, SIDE.R, F) };
+  const lowest = Math.max(-dot(fps.L, F.up), -dot(fps.R, F.up));
+  for (const k of ['L', 'R']) {
+    const s = SIDE[k];
+    const fp = fps[k];
+    const v = sub(shM, fp);
+    const airborne = lowest - -dot(fp, F.up) > 0.06 * (legLength(P, s) || 100);
+    let c = capConf(capConf(confFromVis([P[s.heel], P[s.toe]]), trunkConf), CONF.MED);
+    if (airborne) c = CONF.LOW;
+    out[`bodyLine${k}`] = M(deg(Math.atan2(dot(v, F.up), Math.abs(dot(v, F.f)))), c, '°',
+      { label: `Linea corpo piede ${s.label} → spalle vs orizzontale`, hint: airborne ? 'piede non in appoggio: non interpretabile' : 'piede in appoggio → centro spalle' });
+  }
+
   const com = centerOfMass(P, opts.sex);
   out.com = { x: com.x, y: com.y, conf: com.conf };
   for (const k of ['L', 'R']) {
@@ -232,7 +258,7 @@ export function sagittalMetrics(P, opts = {}) {
       { label: `Piede ${SIDE[k].label} – proiezione CoM`, hint: '+ = piede davanti alla proiezione del CoM', px: dx,
         m: opts.pxPerM ? dx / opts.pxPerM : null, foot: fp });
   }
-  out.meta = { near, dir: F.dir };
+  out.meta = { near, dir: F.dir, sh: shM, hip: hipM };
   return out;
 }
 

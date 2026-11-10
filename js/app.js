@@ -15,7 +15,7 @@ const stage = $('#stage');
 
 const SAG_CHIPS = [
   ['trunk', 'Tronco'], ['head', 'Testa'], ['hip', 'Anca'], ['knee', 'Ginocchio'], ['ankle', 'Caviglia'],
-  ['tibia', 'Tibia'], ['thigh', 'Coscia'], ['com', 'CoM / piede'], ['arms', 'Gomiti'],
+  ['tibia', 'Tibia'], ['thigh', 'Coscia'], ['bodyLine', 'Linea corpo'], ['com', 'CoM / piede'], ['arms', 'Gomiti'],
 ];
 const FRONT_CHIPS = [
   ['pelvis', 'Bacino'], ['shoulders', 'Spalle'], ['trunkLat', 'Tronco lat.'], ['headTilt', 'Testa'],
@@ -27,7 +27,7 @@ export const S = {
   raw: [], px: [], analyzed: false, rangeIn: 0, rangeOut: 0,
   view: 'auto', groundRad: 0, groundShape: null, pxPerM: null, dirSetting: 0, dir: 1, sex: 'M', smooth: 5, model: 'full',
   legs: 'near',
-  show: { trunk: true, head: false, hip: true, knee: true, ankle: true, tibia: true, thigh: false, com: false, arms: false,
+  show: { trunk: true, head: false, hip: true, knee: true, ankle: true, tibia: true, thigh: false, bodyLine: false, com: false, arms: false,
           pelvis: true, shoulders: true, trunkLat: true, headTilt: false, fppa: true, footMid: false },
   skeleton: true, live: true, showLow: false,
   shapes: [], tool: 'select', magnet: true, sel: null, draft: null, history: [],
@@ -79,15 +79,40 @@ function rebuildSeries() {
 }
 
 // ---------------- video ----------------
+const photo = new Image();
+/** sorgente corrente: video oppure foto (fermo immagine) */
+export function media() { return S.isImage ? photo : video; }
+
 $('#file').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   S.name = file.name.replace(/\.[^.]+$/, '');
-  video.src = URL.createObjectURL(file);
   e.target.value = '';
+  if (file.type.startsWith('image/')) { photo.src = URL.createObjectURL(file); return; }
+  S.isImage = false;
+  video.src = URL.createObjectURL(file);
+});
+
+photo.addEventListener('load', async () => {
+  pause();
+  S.isImage = true;
+  S.W = photo.naturalWidth; S.H = photo.naturalHeight;
+  S.raw = []; S.px = []; S.analyzed = false; S.events = []; S.shapes = []; S.A = S.B = null; S.seqView = null; S.seqNear = null;
+  S.groundRad = 0; S.groundShape = null; S.pxPerM = null;
+  $('#empty').hidden = true;
+  S.fps = 30; S.nFrames = 1; S.rangeIn = 0; S.rangeOut = 0; $('#scrub').max = 0;
+  S.loaded = true;
+  fit();
+  S.follow = true; $('#btnFollow').classList.add('on');
+  $('#btnAnalyze').disabled = true;
+  S.frame = 0;
+  await detectSingle(0, ++seekToken);
+  hint(`Foto ${S.W}×${S.H}: angoli automatici sul fermo immagine. Disegna con gli strumenti sotto.`);
+  refreshAll();
 });
 
 video.addEventListener('loadedmetadata', async () => {
+  S.isImage = false;
   S.W = video.videoWidth; S.H = video.videoHeight;
   S.raw = []; S.px = []; S.analyzed = false; S.events = []; S.shapes = []; S.A = S.B = null; S.seqView = null; S.seqNear = null;
   S.groundRad = 0; S.groundShape = null; S.pxPerM = null;
@@ -140,6 +165,7 @@ function detectFps() {
 }
 
 function seekFrame(f) {
+  if (S.isImage) return Promise.resolve();
   return new Promise((resolve) => {
     const t = Math.min(video.duration - 0.0005, (f + 0.5) / S.fps);
     let settled = false;
@@ -175,7 +201,7 @@ async function detectSingle(f, token) {
     hint('Rilevamento articolazioni…');
     const lm = await getLandmarker('IMAGE', S.model);
     if (token !== seekToken) return;
-    const res = lm.detect(video);
+    const res = lm.detect(media());
     setPose(f, landmarksFromResult(res));
     if (!S.px[f]) hint('Atleta non rilevato in questo fotogramma.');
     else hint('');
@@ -292,7 +318,7 @@ function render() {
   const { s, ox, oy } = view();
   ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy);
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(video, 0, 0, S.W, S.H);
+  ctx.drawImage(media(), 0, 0, S.W, S.H);
   const u = 1 / s;
   drawOverlays(ctx, u, S.frame);
   if (S.draft) {
@@ -331,7 +357,7 @@ function drawLoupe() {
 
 // ---------------- riproduzione ----------------
 function play() {
-  if (!S.loaded) return;
+  if (!S.loaded || S.isImage) return;
   video.playbackRate = parseFloat($('#speed').value);
   S.playing = true;
   video.play();
@@ -588,7 +614,7 @@ function buildChips() {
 
 const KEYMAP = {
   trunk: ['trunk', 'trunkH'], head: ['head'], hip: ['hip'], knee: ['knee'], ankle: ['ankle'], tibia: ['tibia'], thigh: ['thigh'],
-  com: ['footCom'], arms: ['elbow', 'shoulder'],
+  com: ['footCom'], arms: ['elbow', 'shoulder'], bodyLine: ['bodyLine'],
   pelvis: ['pelvis'], shoulders: ['shoulders'], trunkLat: ['trunkLat'], headTilt: ['headTilt'], fppa: ['fppa'], footMid: ['footMid'],
 };
 export function activeMetricKeys(mm) {
@@ -855,7 +881,7 @@ $('#btnVideo').onclick = async () => {
         // export senza analisi completa: rileva la posa del fotogramma se manca
         if (S.live && S.raw[f] === undefined) {
           const lm = await getLandmarker('IMAGE', S.model);
-          setPose(f, landmarksFromResult(lm.detect(video)));
+          setPose(f, landmarksFromResult(lm.detect(media())));
         }
       },
       onProgress: (p, msg) => { $('#progressBar').style.width = `${p * 100}%`; $('#progressText').textContent = msg; },

@@ -30,6 +30,14 @@ RANK = {LOW: 0, MED: 1, HIGH: 2}
 BY_RANK = [LOW, MED, HIGH]
 
 
+def edge_vis(P, W, H):
+    """Landmark sul bordo/fuori inquadratura (es. testa tagliata): visibilità limitata a 0,5 (come js toPx)."""
+    out = P.copy()
+    edge = (P[:, 0] < 0.015 * W) | (P[:, 0] > 0.985 * W) | (P[:, 1] < 0.015 * H) | (P[:, 1] > 0.985 * H)
+    out[edge, 3] = np.minimum(out[edge, 3], 0.5)
+    return out
+
+
 def conf_from_vis(*vs: float) -> str:
     m = min(vs)
     return HIGH if m >= 0.8 else MED if m >= 0.55 else LOW
@@ -164,17 +172,22 @@ def sagittal(P, ground_rad=0.0, direction=1, near=None, sex="M", px_per_m=None) 
     out: dict = {}
     shM, hipM = mid(p2(P, 11), p2(P, 12)), mid(p2(P, 23), p2(P, 24))
     tc = conf_from_vis(P[11, 3], P[12, 3], P[23, 3], P[24, 3])
+    sn = SIDE[near]
+    nc = conf_from_vis(P[sn["sh"], 3], P[sn["hip"], 3])
+    if tc == LOW and nc != LOW:  # spalla/anca lontana inaffidabile → lato vicino
+        shM, hipM, tc = p2(P, sn["sh"]), p2(P, sn["hip"]), cap(nc, MED)
     trunk = from_vertical(shM - hipM, F)
     out["trunk"] = Metric(trunk, tc, label="Tronco vs verticale", hint="+ = inclinato in avanti")
     out["trunkH"] = Metric(90 - abs(trunk), tc, label="Tronco vs orizzontale")
     ear = SIDE[near]["ear"]
-    out["head"] = Metric(from_vertical(p2(P, ear) - shM, F) - trunk, conf_from_vis(P[ear, 3], P[11, 3], P[12, 3]),
+    out["head"] = Metric(from_vertical(p2(P, ear) - shM, F) - trunk, cap(conf_from_vis(P[ear, 3]), tc),
                          label="Testa rispetto al tronco", hint="+ = testa avanti/flessa")
     for k, s in SIDE.items():
-        adj = (lambda c: c) if k == near else down
+        far_clear = min(P[s["hip"], 3], P[s["kn"], 3], P[s["an"], 3]) >= 0.95
+        adj = (lambda c: c) if (k == near or far_clear) else down
         hip, kn, an, heel, toe = (p2(P, s[n]) for n in ("hip", "kn", "an", "heel", "toe"))
         thigh = from_down(kn - hip, F)
-        out[f"hip{k}"] = Metric(thigh + trunk, adj(conf_from_vis(P[s["hip"], 3], P[s["kn"], 3], P[11, 3], P[12, 3])),
+        out[f"hip{k}"] = Metric(thigh + trunk, adj(cap(conf_from_vis(P[s["hip"], 3], P[s["kn"], 3]), tc)),
                                 label=f"Anca {s['label']}", hint="+ flessione / − estensione")
         out[f"thigh{k}"] = Metric(thigh, adj(conf_from_vis(P[s["hip"], 3], P[s["kn"], 3])), label=f"Coscia {s['label']} vs verticale")
         out[f"knee{k}"] = Metric(180 - angle3(hip, kn, an), adj(conf_from_vis(P[s["hip"], 3], P[s["kn"], 3], P[s["an"], 3])),
@@ -186,6 +199,16 @@ def sagittal(P, ground_rad=0.0, direction=1, near=None, sex="M", px_per_m=None) 
                                   label=f"Tibia {s['label']} vs verticale", hint="+ = ginocchio davanti alla caviglia")
         out[f"elbow{k}"] = Metric(angle3(p2(P, s["sh"]), p2(P, s["el"]), p2(P, s["wr"])),
                                   adj(conf_from_vis(P[s["sh"], 3], P[s["el"], 3], P[s["wr"], 3])), label=f"Gomito {s['label']}")
+    fps = {k: foot_point(P, s, F) for k, s in SIDE.items()}
+    lowest = max(-float(fps["L"] @ F.up), -float(fps["R"] @ F.up))
+    for k, s in SIDE.items():
+        fp = fps[k]
+        v = shM - fp
+        airborne = lowest - (-float(fp @ F.up)) > 0.06 * (leg_length(P, s) or 100)
+        c = LOW if airborne else cap(cap(conf_from_vis(P[s["heel"], 3], P[s["toe"], 3]), tc), MED)
+        out[f"bodyLine{k}"] = Metric(math.degrees(math.atan2(float(v @ F.up), abs(float(v @ F.f)))), c,
+                                     label=f"Linea corpo piede {s['label']} → spalle vs orizzontale",
+                                     hint="piede non in appoggio: non interpretabile" if airborne else "piede in appoggio → centro spalle")
     com, com_conf = center_of_mass(P, sex)
     out["com"] = dict(xy=com, conf=com_conf)
     for k, s in SIDE.items():
@@ -196,7 +219,7 @@ def sagittal(P, ground_rad=0.0, direction=1, near=None, sex="M", px_per_m=None) 
         out[f"footCom{k}"] = Metric(dx / L * 100, c, "% arto", label=f"Piede {s['label']} – proiezione CoM",
                                     hint="+ = piede davanti alla proiezione del CoM",
                                     extra=dict(px=dx, m=(dx / px_per_m) if px_per_m else None, foot=fp))
-    out["meta"] = dict(near=near, dir=direction)
+    out["meta"] = dict(near=near, dir=direction, sh=shM, hip=hipM)
     return out
 
 

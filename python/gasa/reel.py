@@ -243,7 +243,7 @@ def angle_overlay(img, T, A: Analysis, i: int, cam: Cam, kind: str, leg: str, pr
     M = A.metrics(i, "sagittale")
     s = B.SIDE[leg]
     m_ = lambda idx: cam.map(P[idx])
-    shM = cam.map(B.mid(P[11, :2], P[12, :2])); hipM = cam.map(B.mid(P[23, :2], P[24, :2]))
+    shM = cam.map(M["meta"]["sh"]); hipM = cam.map(M["meta"]["hip"])
     F = B.ref_frame(A.ground_rad, A.direction)
     up = F.up
     p1, p2, p3 = G.ease(prog / 0.25), G.ease((prog - 0.2) / 0.35), G.ease((prog - 0.5) / 0.3)

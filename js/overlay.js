@@ -32,7 +32,7 @@ export function drawSkeleton(ctx, P, u, near, view) {
 export function drawSagittal(ctx, P, M, show, opts) {
   const u = opts.u;
   const F = frame(opts.groundRad || 0, M.meta.dir);
-  const shM = mid(P[11], P[12]), hipM = mid(P[23], P[24]);
+  const shM = M.meta.sh || mid(P[11], P[12]), hipM = M.meta.hip || mid(P[23], P[24]);
   const up = F.up, down = { x: -up.x, y: -up.y };
   const legs = legsToShow(opts.legs, M.meta.near);
   const lab = (m) => fmt(m, opts.showLow);
@@ -86,6 +86,19 @@ export function drawSagittal(ctx, P, M, show, opts) {
     if (show.arms) {
       const m = M[`elbow${k}`];
       arc(ctx, P[s.sh], P[s.el], P[s.wr], u, colorOf(m), lab(m), { r: 22, sub: `GOMITO ${s.label}` });
+    }
+  }
+  if (show.bodyLine) {
+    for (const k of legs) {
+      const m = M[`bodyLine${k}`];
+      if (!m) continue;
+      const fp = footPoint(P, SIDE[k], F);
+      const L = Math.hypot(shM.x - fp.x, shM.y - fp.y);
+      const sgn = (shM.x - fp.x) * F.g.x + (shM.y - fp.y) * F.g.y >= 0 ? 1 : -1;
+      const hRef = { x: fp.x + F.g.x * L * 0.9 * sgn, y: fp.y + F.g.y * L * 0.9 * sgn };
+      line(ctx, fp, hRef, u, C.yellow, 2, [8, 6]);
+      glowLine(ctx, fp, shM, u, colorOf(m), 3);
+      arc(ctx, hRef, fp, shM, u, colorOf(m), lab(m), { r: 70, sub: `LINEA CORPO ${SIDE[k].label}/ORIZZ.` });
     }
   }
   if (show.com && M.com) {

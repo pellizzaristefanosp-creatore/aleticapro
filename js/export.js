@@ -1,5 +1,5 @@
 // Export: PNG, CSV, JSON, report testuale, video analizzato (Reel 9:16 o formato originale).
-import { S, drawOverlays, metricsAt, activeMetricKeys } from './app.js';
+import { S, drawOverlays, metricsAt, activeMetricKeys, media } from './app.js';
 import * as B from './biomech.js';
 import { C, CONF_COLOR, fmt, roundRect } from './draw.js';
 import * as T from './tools.js';
@@ -21,7 +21,7 @@ export function renderFrameTo(cv, f, width = S.W) {
   cv.width = Math.round(width); cv.height = Math.round(S.H * k);
   const c = cv.getContext('2d');
   c.setTransform(k, 0, 0, k, 0, 0);
-  c.drawImage(video, 0, 0, S.W, S.H);
+  c.drawImage(media(), 0, 0, S.W, S.H);
   drawOverlays(c, Math.max(0.6, width / 900) / k, f, { export: true });
   return cv;
 }
@@ -76,7 +76,7 @@ function buildReport() {
   return {
     progetto: 'GASA BIOMECHANICS — SPRINT PERFORMANCE ANALYSIS',
     generato: new Date().toISOString(),
-    video: { nome: S.name, risoluzione: `${S.W}x${S.H}`, fps: S.fps, fps_stimati: S.fpsAuto, durata_s: +video.duration.toFixed(3), fotogrammi: S.nFrames },
+    video: { nome: S.name, risoluzione: `${S.W}x${S.H}`, fps: S.fps, fps_stimati: S.fpsAuto, durata_s: S.isImage ? 0 : +video.duration.toFixed(3), fotogrammi: S.nFrames },
     analisi: {
       intervallo: [S.rangeIn, S.rangeOut], vista: S.seqView || S.view, lato_vicino: S.seqNear, direzione: (S.dirSetting || S.dir) > 0 ? 'destra' : 'sinistra',
       smoothing_frame: S.smooth, terreno_deg: +B.deg(S.groundRad).toFixed(2), scala_px_m: S.pxPerM,
@@ -138,7 +138,7 @@ function drawReel(c, Wo, Ho, f, opts) {
   const k = Math.min(Wo / S.W, (Ho * 0.62) / S.H);
   const vw = S.W * k, vh = S.H * k, vx = (Wo - vw) / 2, vy = 230 * s + (Ho * 0.62 - vh) / 2;
   c.save(); c.translate(vx, vy); c.scale(k, k);
-  c.drawImage(video, 0, 0, S.W, S.H);
+  c.drawImage(media(), 0, 0, S.W, S.H);
   drawOverlays(c, (1 / k) * s * 1.35, f, { export: true });
   c.restore();
   // header
@@ -211,7 +211,7 @@ export async function exportVideo(opts) {
   }
   const draw = (p) => {
     if (reel) drawReel(c, Wo, Ho, p.f, { ...opts, frozen: p.frozen });
-    else { c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(video, 0, 0, S.W, S.H); drawOverlays(c, Math.max(1, S.W / 900), p.f, { export: true }); brandStrip(c, Wo, Ho, p.f); }
+    else { c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(media(), 0, 0, S.W, S.H); drawOverlays(c, Math.max(1, S.W / 900), p.f, { export: true }); brandStrip(c, Wo, Ho, p.f); }
   };
   rec.start();
   rec.pause();

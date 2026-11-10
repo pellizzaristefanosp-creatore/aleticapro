@@ -97,7 +97,7 @@ def run_pose(video: str, start_s: float = 0, end_s: float | None = None, model: 
             res = lm.detect_for_video(mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(fr, cv2.COLOR_BGR2RGB)),
                                       int((i - start) * 1000 / fps) + 1)
             if res.pose_landmarks:
-                raw.append(np.array([[p.x * W, p.y * H, p.z * W, p.visibility] for p in res.pose_landmarks[0]], dtype=float))
+                raw.append(B.edge_vis(np.array([[p.x * W, p.y * H, p.z * W, p.visibility] for p in res.pose_landmarks[0]], dtype=float), W, H))
             else:
                 raw.append(None)
             i += 1
